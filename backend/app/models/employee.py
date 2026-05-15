@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Date, Boolean, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, Date, Boolean, DateTime, ForeignKey, Integer, ARRAY
 from app.db.database import Base
 
 
@@ -18,5 +18,8 @@ class Employee(Base):
     work_mode = Column(String, nullable=False)
     seniority = Column(String, nullable=False, default="mid")
     profile_complete = Column(Boolean, default=False, nullable=False)
+    summary = Column(String, nullable=True)
+    years_of_experience = Column(Integer, nullable=True)
+    domain_expertise = Column(ARRAY(String), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

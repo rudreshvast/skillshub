@@ -74,3 +74,12 @@ def require_hr_role(current_user: User = Depends(get_current_user)) -> User:
             detail="Only HR users can access this resource",
         )
     return current_user
+
+
+def require_employee_role(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "employee":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only employees can access this resource",
+        )
+    return current_user

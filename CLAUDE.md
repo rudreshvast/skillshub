@@ -26,16 +26,18 @@ The frontend communicates with the backend via HTTP (currently hardcoded to `htt
 ### Backend (`/backend`)
 - **Framework**: FastAPI 0.136.1
 - **Language**: Python 3.10 (venv)
-- **Database**: PostgreSQL with SQLAlchemy ORM + async asyncpg driver
+- **Database**: PostgreSQL with SQLAlchemy ORM (sync, Integer PKs)
 - **Data Validation**: Pydantic 2
 - **Migrations**: Alembic
 - **Server**: Uvicorn
 - **Database Vector Support**: pgvector
 - **Authentication**: JWT (HS256) with bcrypt password hashing
 - **Security**: HTTPBearer token-based auth, role-based access control (RBAC)
+- **PDF Processing**: pdfplumber (sync PDF text extraction)
+- **LLM Integration**: OpenAI (gpt-4o-mini for resume parsing)
 
 **Database URL**: `postgresql://skillshub_user:1234@localhost:5432/skillshub` (from `.env`)
-**Environment Variables**: `SECRET_KEY` (JWT signing, defaults to dev key — change in production), `DATABASE_URL`
+**Environment Variables**: `SECRET_KEY` (JWT signing, defaults to dev key — change in production), `DATABASE_URL`, `OPENAI_API_KEY`
 
 ## Workspace Layout
 
@@ -51,13 +53,25 @@ skillshub/
 │   │   │   └── auth.tsx  # Zustand auth store (token, user, login, logout, loadFromStorage)
 │   │   ├── components/   # Reusable components
 │   │   │   ├── protected-route.tsx  # Route guard with optional role checking
+│   │   │   ├── employee/              # Employee components
+│   │   │   │   ├── resume-dropzone.tsx       # PDF drag-drop upload with progress states
+│   │   │   │   └── extracted-profile-preview.tsx  # Read-only profile display
 │   │   │   └── hr/                  # HR-specific components
 │   │   │       ├── bulk-import-upload.tsx   # CSV file upload, drag-drop, progress display
 │   │   │       ├── single-import-form.tsx   # Form for adding single employee
-│   │   │       └── toast.tsx                # Toast notifications (success/error)
+│   │   │       ├── toast.tsx                # Toast notifications (success/error)
+│   │   │       ├── queue-list.tsx           # Pending profile list for review queue
+│   │   │       ├── profile-editor.tsx       # Main profile editor with 5 sections
+│   │   │       ├── skills-editor.tsx        # Skills table with inferred skills
+│   │   │       └── projects-editor.tsx      # Collapsible projects editor
+│   │   ├── employee/     # Employee module pages
+│   │   │   └── resume/   
+│   │   │       └── page.tsx  # Resume upload and preview page
 │   │   ├── hr/           # HR module pages
-│   │   │   └── import/   
-│   │   │       └── page.tsx  # Employee import page with tabs for single/bulk import
+│   │   │   ├── import/   
+│   │   │   │   └── page.tsx  # Employee import page with tabs for single/bulk import
+│   │   │   └── review-queue/
+│   │   │       └── page.tsx  # Resume review queue with split-panel editor
 │   │   └── lib/          # Shared utilities
 │   │       └── api.ts    # Axios HTTP client instance (configured for backend)
 │   ├── package.json
@@ -73,16 +87,26 @@ skillshub/
 │   │   │   ├── router.py         # Auth endpoints (/auth/login, /auth/me)
 │   │   │   ├── schemas.py        # UserCreate, UserResponse, Token schemas
 │   │   │   ├── utils.py          # hash_password, verify_password, create/decode JWT tokens
-│   │   │   ├── dependencies.py   # get_db, get_current_user, require_hr_role
+│   │   │   ├── dependencies.py   # get_db, get_current_user, require_hr_role, require_employee_role
 │   │   │   └── __init__.py
 │   │   ├── models/       # SQLAlchemy ORM models
 │   │   │   ├── user.py   # User model (id, email, hashed_password, name, role, is_active)
-│   │   │   └── employee.py # Employee model (user_id, employee_id, name, dob, date_of_joining, designation, department, location, work_mode, seniority, profile_complete, created_at, updated_at)
+│   │   │   ├── employee.py # Employee model (user_id, employee_id, name, dob, date_of_joining, designation, department, location, work_mode, seniority, profile_complete, summary, years_of_experience, domain_expertise, created_at, updated_at)
+│   │   │   ├── pending_profile.py # PendingProfile model (id, employee_id FK, extracted_data JSON, original_pdf_path, status, uploaded_at, reviewed_at, reviewed_by FK)
+│   │   │   ├── employee_skill.py # EmployeeSkill model (id, employee_id FK, skill_name, category, proficiency, years, is_inferred, confidence_score)
+│   │   │   ├── employee_project.py # EmployeeProject model (id, employee_id FK, name, role, duration, domain, technologies ARRAY)
+│   │   │   └── employee_certification.py # EmployeeCertification model (id, employee_id FK, name, issuer, issued_on)
 │   │   ├── auth/         # (see auth section above)
 │   │   ├── employees/    # Employee management module
 │   │   │   ├── router.py      # Endpoints: /employees/import/{single,bulk,template}
 │   │   │   ├── schemas.py     # EmployeeCreate, EmployeeResponse, BulkImportResponse, ImportError
 │   │   │   ├── service.py     # CSV parsing, validation, bulk/single import, template generation
+│   │   │   └── __init__.py
+│   │   ├── resume/       # Resume ingestion module
+│   │   │   ├── router.py      # Endpoints: POST /upload, GET /my-profile, GET /review-queue, POST /approve, POST /reject
+│   │   │   ├── schemas.py     # ExtractedProfile, SkillExtracted, InferredSkill, PendingProfileResponse, ApproveRequest
+│   │   │   ├── service.py     # PDF extraction, OpenAI API calls, profile management
+│   │   │   ├── claude_prompt.py  # System and user prompts for OpenAI gpt-4o-mini
 │   │   │   └── __init__.py
 │   │   ├── db/           # Database configuration
 │   │   │   └── database.py  # SQLAlchemy setup, SessionLocal, Base
@@ -93,7 +117,9 @@ skillshub/
 │   │   └── utils/        # Helper utilities
 │   ├── alembic/          # Database migration directory
 │   ├── alembic.ini       # Alembic config
-│   ├── .env              # Environment variables (DATABASE_URL, SECRET_KEY)
+│   ├── uploads/          # File uploads directory
+│   │   └── resumes/      # Uploaded PDF resumes (employee_id_timestamp.pdf)
+│   ├── .env              # Environment variables (DATABASE_URL, SECRET_KEY, OPENAI_API_KEY)
 │   ├── venv/             # Python virtual environment
 │   └── .gitignore        # Git ignore rules for Python/venv
 ```
@@ -242,6 +268,113 @@ HR users can add employees individually or in bulk via CSV. Each employee is lin
 - Non-CSV files rejected at endpoint
 - Invalid dates logged as per-row errors (don't stop import)
 - Transactions used for single employee import; bulk import is best-effort
+
+## Resume Ingestion Feature
+
+### Overview
+Employees upload PDF resumes. OpenAI (gpt-4o-mini) extracts structured profile data. HR reviews extracted data in a queue, makes edits, and approves to write to database.
+
+### Database Models (Sync SQLAlchemy, Integer PKs)
+
+**Employee columns added:**
+- `summary` (String, nullable) — profile summary from resume
+- `years_of_experience` (Integer, nullable) — total years
+- `domain_expertise` (ARRAY(String), nullable) — list of domain areas
+
+**New tables:**
+1. **pending_profiles**: id, employee_id (FK), extracted_data (JSON), original_pdf_path, status (pending/approved/rejected), uploaded_at, reviewed_at (nullable), reviewed_by (FK users.id, nullable)
+2. **employee_skills**: id, employee_id (FK), skill_name, category (language/framework/platform/tool/domain), proficiency (novice/intermediate/expert), years, is_inferred (Boolean), confidence_score (Float, nullable)
+3. **employee_projects**: id, employee_id (FK), name, role, duration, domain, technologies (ARRAY(String))
+4. **employee_certifications**: id, employee_id (FK), name, issuer, issued_on (Date, nullable)
+
+### Backend Resume Module (`/app/resume/`)
+
+**Dependencies:** `pdfplumber` (sync PDF extraction), `openai` (gpt-4o-mini API)
+
+**Environment Variables:**
+- `OPENAI_API_KEY` — for Claude-alternative resume parsing
+
+**Files:**
+- `claude_prompt.py` — system + user prompt templates for OpenAI
+- `schemas.py` — Pydantic v2 models (SkillExtracted, InferredSkill, ExtractedProfile, PendingProfileResponse, PendingProfileWithEmployee, ApproveRequest)
+- `service.py` — sync functions: `extract_text_from_pdf()`, `call_claude_api()` (gpt-4o-mini), `get_or_create_employee_pending_profile()`, `get_review_queue()`, `approve_profile()`, `reject_profile()`
+- `router.py` — 6 endpoints (see below)
+
+**Key function notes:**
+- `extract_text_from_pdf()` uses pdfplumber (sync, called via `asyncio.to_thread` in router)
+- `call_claude_api()` calls OpenAI with gpt-4o-mini model, parses JSON response with fallback for markdown code blocks
+- All database operations use sync SQLAlchemy Session pattern (matching existing codebase)
+
+### Resume API Endpoints
+
+1. **POST /resume/upload** (employee role only)
+   - Multipart PDF upload, max 10MB
+   - Saves to `backend/uploads/resumes/{employee_id}_{timestamp}.pdf`
+   - Extracts text → validates ≥100 chars → calls OpenAI → upserts pending_profile
+   - Returns ExtractedProfile on success
+
+2. **GET /resume/my-profile** (employee role only)
+   - Returns current employee's pending_profile (with extracted_data) or null
+
+3. **GET /resume/review-queue** (HR role only)
+   - Returns all pending profiles with employee name, designation, department
+   - Joins pending_profiles with employees table
+   - Returns list[PendingProfileWithEmployee]
+
+4. **GET /resume/review-queue/{pending_profile_id}** (HR role only)
+   - Returns single pending profile with full employee info
+
+5. **POST /resume/review-queue/{pending_profile_id}/approve** (HR role only)
+   - Accept edited extracted_data in request body
+   - Single async transaction:
+     * Delete existing skills/projects/certs for employee
+     * Bulk insert employee_skills (marks inferred skills with is_inferred=true, confidence_score)
+     * Bulk insert employee_projects, employee_certifications
+     * Update employees: summary, years_of_experience, domain_expertise, seniority, profile_complete=true
+     * Update pending_profiles: status=approved, reviewed_at, reviewed_by
+   - Returns {status, employee_id, profile_complete}
+
+6. **POST /resume/review-queue/{pending_profile_id}/reject** (HR role only)
+   - Sets status=rejected, reviewed_at, reviewed_by
+
+### Frontend Resume Pages & Components
+
+**Employee Upload Page** (`/employee/resume`):
+- ProtectedRoute requiredRole="employee"
+- `ResumeDropzone`: drag-drop PDF upload with progress states (uploading → extracting → analyzing → done)
+- `ExtractedProfilePreview` (read-only): displays name, role, location, skills (colored pills by category), inferred skills (amber bg with confidence %), projects, certifications, domain expertise
+- Shows "pending HR review" banner after upload
+- Re-upload button available
+
+**HR Review Queue Page** (`/hr/review-queue`):
+- ProtectedRoute requiredRole="hr"
+- Split-panel grid layout (35% queue list, 65% editor)
+- `QueueList`: selectable list of pending profiles with employee name, designation, department badge, time-ago upload, pending count badge
+- `ProfileEditor`: 5 editable sections
+  1. Basic info: name, current_role, location, seniority (select), years_of_experience, summary (textarea)
+  2. Skills: explicit skills table + inferred skills section with accept/delete buttons, + add skill button
+  3. Projects: collapsible project cards, + add project button
+  4. Certifications: name/issuer/issued_on inputs, + add cert button
+  5. Sticky bottom bar: "Reject" (red outlined, confirm dialog) | "Approve & Save" (teal filled)
+- `SkillsEditor`: two sections (explicit + inferred), category/proficiency/years selects, confidence % badge on inferred
+- `ProjectsEditor`: collapsible cards, comma-separated technologies input
+- All edits are local state; only sent on Approve click
+
+**Components with null safety:**
+- All optional chaining (`?.`) and nullish coalescing (`??`) used throughout
+- `extracted-profile-preview.tsx` defensively accesses all arrays and objects
+- `profile-editor.tsx` has styled scrollbar (webkit, 8px width, slate gray thumb)
+
+### Resume Ingestion Notes
+
+- **OpenAI integration**: Uses gpt-4o-mini model (not gpt-4.5-mini which may not exist)
+- **System message format**: OpenAI requires system as a message with role "system", not a separate parameter
+- **Skill inference rules**: Next.js→React, React→JS, Angular→TS, Kubernetes→Docker, Spring Boot→Java, etc. (see claude_prompt.py)
+- **Inferred skills**: marked with is_inferred=true, confidence_score from Claude response
+- **PDF extraction**: uses pdfplumber (sync), wrapped in `asyncio.to_thread` for async route handler
+- **Error handling**: JSON parsing has fallback for markdown code blocks (```json...```)
+- **Review queue query**: returns dictionaries (not tuples) for easy Pydantic model conversion
+- **Transaction safety**: approve flow is single transaction; bulk insert with rollback on error
 
 ## Getting Started on a Task
 

@@ -4,12 +4,18 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.auth.dependencies import get_db, require_hr_role, get_current_user
 from app.models.user import User
-from app.employees.schemas import EmployeeCreate, EmployeeResponse, BulkImportResponse
+from app.employees.schemas import (
+    EmployeeCreate, EmployeeResponse, BulkImportResponse,
+    EmployeeListResponse, EmployeeFullProfile, FilterOptions
+)
 from app.employees.service import (
     import_single_employee,
     import_bulk_employees,
     parse_csv_file,
     generate_csv_template,
+    get_employee_list,
+    get_employee_full_profile,
+    get_filter_options,
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -65,3 +71,51 @@ async def import_bulk(
 
     result = import_bulk_employees(db, rows)
     return result
+
+
+@router.get("/filters/options", response_model=FilterOptions)
+def get_filter_dropdown_options(
+    current_user: User = Depends(require_hr_role),
+    db: Session = Depends(get_db),
+):
+    """Get unique filter values for directory dropdowns (HR only)."""
+    return get_filter_options(db)
+
+
+@router.get("", response_model=EmployeeListResponse)
+def list_employees(
+    search: str | None = None,
+    department: str | None = None,
+    location: str | None = None,
+    work_mode: str | None = None,
+    seniority: str | None = None,
+    skill: str | None = None,
+    profile_complete: bool | None = None,
+    page: int = 1,
+    page_size: int = 20,
+    current_user: User = Depends(require_hr_role),
+    db: Session = Depends(get_db),
+):
+    """Get paginated list of employees with optional filters (HR only)."""
+    return get_employee_list(
+        db=db,
+        search=search,
+        department=department,
+        location=location,
+        work_mode=work_mode,
+        seniority=seniority,
+        skill=skill,
+        profile_complete=profile_complete,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/{emp_id}", response_model=EmployeeFullProfile)
+def get_employee_profile(
+    emp_id: int,
+    current_user: User = Depends(require_hr_role),
+    db: Session = Depends(get_db),
+):
+    """Get full employee profile (HR only)."""
+    return get_employee_full_profile(db, emp_id)

@@ -19,6 +19,10 @@ if config.config_file_name is not None:
 from app.db.database import Base
 from app.models.user import User  # noqa: F401
 from app.models.employee import Employee  # noqa: F401
+from app.models.pending_profile import PendingProfile  # noqa: F401
+from app.models.employee_skill import EmployeeSkill  # noqa: F401
+from app.models.employee_project import EmployeeProject  # noqa: F401
+from app.models.employee_certification import EmployeeCertification  # noqa: F401
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

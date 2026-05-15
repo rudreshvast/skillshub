@@ -62,3 +62,87 @@ class BulkImportResponse(BaseModel):
     failed: int
     created: list[EmployeeResponse]
     errors: list[ImportError]
+
+
+class SkillItem(BaseModel):
+    id: int
+    skill_name: str
+    category: str
+    proficiency: str
+    years: int | None
+    is_inferred: bool
+    confidence_score: float | None
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectItem(BaseModel):
+    id: int
+    name: str
+    role: str | None
+    duration: str | None
+    domain: str | None
+    technologies: list[str] | None
+
+    model_config = {"from_attributes": True}
+
+
+class CertificationItem(BaseModel):
+    id: int
+    name: str
+    issuer: str | None
+    issued_on: date | None
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeListItem(BaseModel):
+    id: int
+    name: str
+    designation: str
+    department: str
+    location: str
+    work_mode: str
+    seniority: str
+    years_of_experience: int | None
+    profile_complete: bool
+    domain_expertise: list[str] | None
+    top_skills: list[str]
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeFullProfile(BaseModel):
+    id: int
+    name: str
+    designation: str
+    department: str
+    location: str
+    work_mode: str
+    seniority: str
+    years_of_experience: int | None
+    summary: str | None
+    domain_expertise: list[str] | None
+    profile_complete: bool
+    date_of_joining: date | None
+    employee_id: str
+    skills: list[SkillItem]
+    projects: list[ProjectItem]
+    certifications: list[CertificationItem]
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeListResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    employees: list[EmployeeListItem]
+
+
+class FilterOptions(BaseModel):
+    departments: list[str]
+    locations: list[str]
+    work_modes: list[str]
+    seniorities: list[str]
+    skills: list[str]
