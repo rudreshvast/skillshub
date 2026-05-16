@@ -1,8 +1,8 @@
 from io import BytesIO
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from app.auth.dependencies import get_db, require_hr_role, get_current_user
+from app.auth.dependencies import get_db, require_hr_or_management, get_current_user
 from app.models.user import User
 from app.employees.schemas import (
     EmployeeCreate, EmployeeResponse, BulkImportResponse,
@@ -35,7 +35,7 @@ def get_import_template(db: Session = Depends(get_db)):
 @router.post("/import/single", response_model=EmployeeResponse, status_code=201)
 def import_single(
     employee_data: EmployeeCreate,
-    current_user: User = Depends(require_hr_role),
+    current_user: User = Depends(require_hr_or_management),
     db: Session = Depends(get_db),
 ):
     """Import a single employee (HR only)."""
@@ -58,7 +58,7 @@ def import_single(
 @router.post("/import/bulk", response_model=BulkImportResponse)
 async def import_bulk(
     file: UploadFile = File(...),
-    current_user: User = Depends(require_hr_role),
+    current_user: User = Depends(require_hr_or_management),
     db: Session = Depends(get_db),
 ):
     """Bulk import employees from CSV (HR only)."""
@@ -75,7 +75,7 @@ async def import_bulk(
 
 @router.get("/filters/options", response_model=FilterOptions)
 def get_filter_dropdown_options(
-    current_user: User = Depends(require_hr_role),
+    current_user: User = Depends(require_hr_or_management),
     db: Session = Depends(get_db),
 ):
     """Get unique filter values for directory dropdowns (HR only)."""
@@ -93,7 +93,7 @@ def list_employees(
     profile_complete: bool | None = None,
     page: int = 1,
     page_size: int = 20,
-    current_user: User = Depends(require_hr_role),
+    current_user: User = Depends(require_hr_or_management),
     db: Session = Depends(get_db),
 ):
     """Get paginated list of employees with optional filters (HR only)."""
@@ -114,8 +114,38 @@ def list_employees(
 @router.get("/{emp_id}", response_model=EmployeeFullProfile)
 def get_employee_profile(
     emp_id: int,
-    current_user: User = Depends(require_hr_role),
+    current_user: User = Depends(require_hr_or_management),
     db: Session = Depends(get_db),
 ):
     """Get full employee profile (HR only)."""
     return get_employee_full_profile(db, emp_id)
+
+
+@router.get("/directory", response_model=EmployeeListResponse)
+def get_employee_directory(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: str | None = Query(default=None),
+    department: str | None = Query(default=None),
+    location: str | None = Query(default=None),
+    work_mode: str | None = Query(default=None),
+    seniority: str | None = Query(default=None),
+    skill: str | None = Query(default=None),
+    current_user: User = Depends(require_hr_or_management),
+    db: Session = Depends(get_db),
+):
+    """
+    HR/Management directory view.
+    Frontend /hr/employees page calls this.
+    """
+    return get_employee_list(
+        db=db,
+        search=search,
+        department=department,
+        location=location,
+        work_mode=work_mode,
+        seniority=seniority,
+        skill=skill,
+        page=page,
+        page_size=page_size,
+    )

@@ -376,6 +376,172 @@ Employees upload PDF resumes. OpenAI (gpt-4o-mini) extracts structured profile d
 - **Review queue query**: returns dictionaries (not tuples) for easy Pydantic model conversion
 - **Transaction safety**: approve flow is single transaction; bulk insert with rollback on error
 
+## People Explorer Feature
+
+### Overview
+Read-only public employee directory and skill browsing. All authenticated users can explore colleagues' profiles, skills, and expertise. Accessible via `/people/*` routes.
+
+### Backend People Module (`/app/people/`)
+
+**Files:**
+- `router.py` — 4 endpoints for directory, filters, profile, skill lookup
+- `service.py` — 4 service functions with smart filtering, pagination, skill aggregation
+- `schemas.py` — 10 Pydantic models for responses
+
+**Key Database Access Pattern:**
+- All queries use sync SQLAlchemy with `Session` parameter
+- Relationships (`employee.skills`, `employee.projects`, `employee.certifications`) are eagerly loaded via backrefs defined in models
+- Skill filtering uses `.distinct()` to avoid duplicate employees when joining EmployeeSkill
+
+**Backend API Endpoints:**
+
+1. **GET /people** — Directory listing with pagination & filters
+   - Query params: `page=1, page_size=20, department=?, designation=?, location=?, seniority=?, skill=?, search=?`
+   - Returns: `PeopleListResponse` with paginated `EmployeeCard[]`
+   - Filters applied: name search (ilike), category exact match, skill cross-table join
+   - Top 4 skills pre-sorted by proficiency (expert→intermediate→novice) then years DESC
+
+2. **GET /people/filters** — Filter dropdown options
+   - Returns: `PeopleFilterOptions` (departments, locations, designations, seniorities, skills)
+   - Skills include only non-inferred, profile_complete=true employees
+   - Seniorities: fixed ordered list [junior, mid, senior, lead, principal]
+   - Cache-friendly — rarely changes
+
+3. **GET /people/{employee_id}** — Full employee profile
+   - Path param: `employee_id` (integer Employee.id)
+   - Returns: `EmployeePublicProfile` with all relationships (skills, projects, certifications)
+   - 404 if employee not found
+
+4. **GET /people/skills/{skill_name}** — Skill browse (who has it)
+   - Path param: `skill_name` (string, case-insensitive match via ilike)
+   - Returns: `SkillBrowseResponse` with employees grouped by proficiency (expert, intermediate, novice)
+   - Only non-inferred, profile_complete=true employees included
+   - Sorted by name within each proficiency bucket
+   - 404 if no employees found with skill
+
+**Authentication & Access:**
+- All `/people/*` endpoints require `Depends(get_current_user)` — **no role restriction**
+- Any logged-in user (hr, employee, or other roles) can access
+- Token validation via JWT header: `Authorization: Bearer <token>`
+
+**HR-only Alias:**
+- `GET /employees/directory` — Identical to `/people` data shape
+- Restricted to HR + Management designations via `Depends(require_hr_or_management)`
+- Used by frontend `/hr/employees` page
+
+### Frontend People Explorer
+
+**Types** (`frontend/app/types/people.ts`):
+- 9 TypeScript interfaces: SkillSummary, CertificationSummary, ProjectSummary, EmployeeCard, EmployeePublicProfile, PeopleListResponse, PeopleFilterOptions, SkillBrowseEntry, SkillBrowseResponse, ActiveFilters
+
+**Components** (`frontend/app/components/people/`):
+
+1. **skill-pill.tsx** — Reusable skill badge
+   - Props: `skill, proficiency?, years?, clickable?, size?`
+   - Clickable navigates to `/people/skills/{skill}`
+   - Colors by proficiency: expert (teal), intermediate (blue), novice (gray)
+   - Sizes: sm (skill only), md (skill · N yrs)
+
+2. **employee-card.tsx** — Grid card for directory listing
+   - Props: `employee: EmployeeCard, onClick?`
+   - Avatar (48px) with initials, dept-based background color
+   - Name + designation header
+   - Meta chips: department, seniority, location, work_mode
+   - Top 4 skills (if profile_complete) or "Profile pending" banner
+   - Footer: years of experience + first domain expertise badge
+   - Entire card is Link to `/people/{employee.id}`
+
+3. **people-filters.tsx** — Sidebar filter panel
+   - Props: `filters, activeFilters, onChange, onClear`
+   - Sections (collapsible): Search, Department, Designation, Seniority, Location, Skills
+   - Radio group select (single choice per section)
+   - Skills typeahead with input filtering
+   - Shows active filter count badge
+   - "Clear all filters" button if any active
+   - Mobile: hidden by default, rendered inside Sheet on mobile
+
+4. **profile-skills-section.tsx** — Skills grouped by category
+   - Props: `skills: SkillSummary[]`
+   - Groups by category: language, framework, platform, tool, domain
+   - Each skill shows proficiency dot (🟢/🟡/⚪) and years
+   - Separate "AI Inferred Skills" section (amber bg) with confidence % badge
+   - Uses SkillPill components (clickable)
+
+**Pages** (`frontend/app/people/`):
+
+1. **page.tsx** — People Explorer directory `/people`
+   - Route: `/people`
+   - Access: all authenticated users (no requiredRole)
+   - State: activeFilters, page, mobileFiltersOpen
+   - Data: React Query with keys `['people', activeFilters, page]` and `['people-filters']`
+   - Layout: 3-column grid (lg), 2-column (md), 1-column (mobile)
+   - Filters sidebar: sticky, desktop-only (Sheet modal on mobile)
+   - Pagination: Previous/Next buttons, showing X–Y of Z
+   - Loading: 6 skeleton cards (animate-pulse)
+   - Empty: Users icon + "No employees found" + "Clear filters" button
+   - Error: Alert + "Retry" button
+   - Filter changes reset page to 1
+
+2. **[id]/page.tsx** — Employee public profile `/people/{id}`
+   - Route: `/people/{id}` (id = Employee.id integer)
+   - Access: all authenticated users
+   - Data: React Query key `['people', id]`
+   - Layout: single column, max-w-4xl, mx-auto
+   - Back button: "← People" link
+   - Profile header card: avatar, name (h1), designation+dept badges, location/work_mode/seniority meta, date_of_joining, profile_complete warning (if needed)
+   - "Edit my profile" button (if viewing own profile)
+   - About section: summary paragraph + domain_expertise pills + years_of_experience
+   - Skills section: ProfileSkillsSection component with all skills (verified + inferred)
+   - Projects section: resume-extracted projects (not allocations), card layout with role/domain/duration badges, technologies as SkillPills
+   - Certifications section: Award icon + name + issuer + issued_on date
+   - "Find similar colleagues" CTA (HR/management only): suggests search by top 3 skills
+
+3. **skills/[skill]/page.tsx** — Skill browse `/people/skills/{skill}`
+   - Route: `/people/skills/{skill}` (skill = URL-encoded skill name)
+   - Access: all authenticated users
+   - Data: React Query key `['skill-browse', decodedSkill]`
+   - Layout: single column, max-w-3xl
+   - Back button: "← People" link
+   - Header: SkillPill (non-clickable) + "{total} employees know this skill"
+   - Three sections (only render if non-empty):
+     * **Expert**: green header + count badge, rows of SkillBrowseEntry (avatar + name + designation + location + years)
+     * **Intermediate**: blue header + count badge, same row layout
+     * **Novice**: gray header + count badge, same row layout
+   - Each row is clickable (navigates to `/people/{employee_id_num}`)
+   - Empty state: "No employees found with skill '{skill}'"
+
+**HR Employee Directory** (`frontend/app/hr/employees/page.tsx`):
+- Route: `/hr/employees`
+- Access: `requiredPermission="hr_or_management"`
+- Identical layout/functionality to `/people` directory
+- Uses `GET /employees/directory` endpoint (instead of `/people`)
+- Shows incomplete profile warning banner if any employees have profile_complete=false
+- Header: "Employee Directory" (vs. "People")
+- Reuses all components: PeopleFilters, EmployeeCardComponent, pagination, states
+
+**Common Patterns:**
+
+- **Data Fetching**: All pages use React Query `useQuery` with:
+  - Authorization header: `{ Authorization: 'Bearer ${token}' }`
+  - Deconstructed query keys: `['people', ...params]` (enables granular cache invalidation)
+  - Error & loading states handled per query
+  
+- **Styling**:
+  - Tailwind CSS 4, no inline styles
+  - Card borders: `border-[#EBEEF0]` (from globals.css)
+  - Text colors: `text-slate-{500,600,700,900}` for hierarchy
+  - Badge colors: department-specific or seniority-specific
+  
+- **Null Safety**: Everywhere
+  - Optional chaining: `employee?.skills?.length`
+  - Nullish coalescing: `domain_expertise ?? []`
+  - Conditional rendering: `{condition && <Component />}`
+  
+- **Mobile Responsive**:
+  - Grid: `grid-cols-1 sm:grid-cols-2 xl:grid-cols-3`
+  - Sidebar: `hidden md:block` (desktop), Sheet (mobile)
+  - Text: responsive sizing (h1 → text-3xl, h2 → text-xl, etc.)
+
 ## Getting Started on a Task
 
 1. **For frontend changes**: Modify files in `frontend/app/`, run `npm run dev`, test in browser at `http://localhost:3000`. For auth-related work, test token flow through the auth store and protected routes.

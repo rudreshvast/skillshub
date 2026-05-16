@@ -8,6 +8,8 @@ export interface User {
   name: string;
   role: "hr" | "employee";
   is_active: boolean;
+  designation: string | null;
+  department: string | null;
 }
 
 interface AuthStore {

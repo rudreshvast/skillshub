@@ -24,6 +24,9 @@ from app.models.employee_skill import EmployeeSkill  # noqa: F401
 from app.models.employee_project import EmployeeProject  # noqa: F401
 from app.models.employee_certification import EmployeeCertification  # noqa: F401
 from app.models.project import Project, ProjectAllocation  # noqa: F401
+from app.models.article import Article  # noqa: F401
+from app.models.article_task import ArticleTask  # noqa: F401
+from app.models.task_completion import TaskCompletion  # noqa: F401
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

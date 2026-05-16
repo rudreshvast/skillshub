@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_db, get_current_user, require_hr_role, require_employee_role
+from app.auth.dependencies import get_db, get_current_user, require_hr_role, require_employee_role, require_hr_or_management
 from app.models.user import User
 from app.models.employee import Employee
 from app.models.pending_profile import PendingProfile
@@ -247,7 +247,7 @@ def get_my_profile(
 @router.get("/review-queue")
 def get_review_queue(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_role)
+    current_user: User = Depends(require_hr_or_management)
 ) -> list[PendingProfileWithEmployee]:
     """Get all pending profiles for HR review."""
     pending = service.get_review_queue(db)
@@ -276,7 +276,7 @@ def get_review_queue(
 def get_pending_profile(
     pending_profile_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_role)
+    current_user: User = Depends(require_hr_or_management)
 ) -> PendingProfileWithEmployee:
     """Get specific pending profile for review."""
     profile = db.query(PendingProfile).filter(
@@ -318,7 +318,7 @@ def approve_profile(
     pending_profile_id: int,
     request: ApproveRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_role)
+    current_user: User = Depends(require_hr_or_management)
 ) -> dict:
     """Approve and save resume profile."""
     employee = service.approve_profile(
@@ -335,7 +335,7 @@ def approve_profile(
 def reject_profile(
     pending_profile_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_role)
+    current_user: User = Depends(require_hr_or_management)
 ) -> dict:
     """Reject resume profile."""
     return service.reject_profile(db, pending_profile_id, current_user.id)

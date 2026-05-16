@@ -4,7 +4,13 @@ from starlette.requests import Request
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.user import User
+from app.models.employee import Employee
 from app.auth.utils import decode_access_token
+from app.core.designations import (
+    MANAGEMENT_DESIGNATIONS,
+    PROJECT_DESIGNATIONS,
+    RECOMMENDED_AUTHOR_DESIGNATIONS,
+)
 
 security = HTTPBearer()
 
@@ -83,3 +89,55 @@ def require_employee_role(current_user: User = Depends(get_current_user)) -> Use
             detail="Only employees can access this resource",
         )
     return current_user
+
+
+def get_employee_for_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Employee | None:
+    return db.query(Employee).filter(Employee.user_id == current_user.id).first()
+
+
+def require_hr_or_management(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if current_user.role == "hr":
+        return current_user
+    employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if employee and employee.designation in [d.value for d in MANAGEMENT_DESIGNATIONS]:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="HR or Management access required",
+    )
+
+
+def require_project_access(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if current_user.role == "hr":
+        return current_user
+    employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if employee and employee.designation in [d.value for d in PROJECT_DESIGNATIONS]:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Project management access required",
+    )
+
+
+def require_recommended_author(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if current_user.role == "hr":
+        return current_user
+    employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if employee and employee.designation in [d.value for d in RECOMMENDED_AUTHOR_DESIGNATIONS]:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Recommended author access required",
+    )

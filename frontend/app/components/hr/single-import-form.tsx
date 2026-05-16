@@ -3,8 +3,9 @@
 import { FormEvent, useState } from "react";
 import api from "@/app/lib/api";
 import Toast from "@/app/components/toast";
+import { DEPARTMENT_DESIGNATIONS } from "@/app/lib/designations";
 
-const DEPARTMENTS = ["Engineering", "Design", "Product", "DevOps", "QA", "Data", "Management"];
+const DEPARTMENTS = Object.keys(DEPARTMENT_DESIGNATIONS);
 const WORK_MODES = ["Remote", "Hybrid", "Onsite"];
 const SENIORITY_LEVELS = ["Junior", "Mid", "Senior", "Lead", "Principal"];
 
@@ -16,6 +17,7 @@ export default function SingleImportForm() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [success, setSuccess] = useState<string | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     employee_id: "",
@@ -31,7 +33,15 @@ export default function SingleImportForm() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Handle department change with cascading reset of designation
+    if (name === "department") {
+      setSelectedDepartment(value);
+      setFormData((prev) => ({ ...prev, [name]: value, designation: "" }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+
     // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors((prev) => {
@@ -75,6 +85,7 @@ export default function SingleImportForm() {
         work_mode: "",
         seniority: "Mid",
       });
+      setSelectedDepartment("");
 
       // Clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
@@ -201,16 +212,29 @@ export default function SingleImportForm() {
             <label htmlFor="designation" className="block text-sm font-medium text-gray-700 mb-2">
               Designation *
             </label>
-            <input
-              type="text"
+            <select
               id="designation"
               name="designation"
               value={formData.designation}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Software Engineer"
-            />
+              disabled={!selectedDepartment}
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                !selectedDepartment
+                  ? "border-gray-300 bg-gray-100 cursor-not-allowed"
+                  : "border-gray-300"
+              }`}
+            >
+              <option value="">Select a designation</option>
+              {selectedDepartment &&
+                (DEPARTMENT_DESIGNATIONS[
+                  selectedDepartment as keyof typeof DEPARTMENT_DESIGNATIONS
+                ] ?? []).map((designation) => (
+                  <option key={designation} value={designation}>
+                    {designation}
+                  </option>
+                ))}
+            </select>
           </div>
 
           {/* Department */}

@@ -5,6 +5,8 @@ from app.employees.router import router as employees_router
 from app.resume.router import router as resume_router
 from app.search.router import router as search_router
 from app.projects.router import router as projects_router
+from app.people.router import router as people_router
+from app.blog.router import router as blog_router
 
 app = FastAPI()
 
@@ -21,6 +23,8 @@ app.include_router(employees_router)
 app.include_router(resume_router)
 app.include_router(search_router)
 app.include_router(projects_router)
+app.include_router(people_router)
+app.include_router(blog_router, prefix="/blog", tags=["blog"])
 
 @app.get("/")
 def root():

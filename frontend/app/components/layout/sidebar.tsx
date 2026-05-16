@@ -1,216 +1,90 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useAuthStore } from "@/app/context/auth";
-import { useUIStore } from "@/app/context/ui";
-import api from "@/app/lib/api";
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useAuthStore } from "@/app/context/auth"
+import { useUIStore } from "@/app/context/ui"
+import { navStructure } from "@/app/components/layout/nav-config"
+import { isHROrManagement, canManageProjects } from "@/app/lib/permissions"
+import { NavItem } from "@/app/types/navigation"
+import { User } from "@/app/context/auth"
+import api from "@/app/lib/api"
 import {
-  LayoutDashboard,
-  Sparkles,
-  Users,
-  BadgeCheck,
-  Inbox,
-  BarChart2,
-  UsersRound,
-  TrendingUp,
-  Upload,
-  Tag,
-  Settings,
   LogOut,
   ChevronRight,
-} from "lucide-react";
+  Settings,
+} from "lucide-react"
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-  badge?: number;
-  special?: boolean;
-}
+function canSeeNavItem(item: NavItem, user: User | null): boolean {
+  if (!user) return false
 
-interface NavSection {
-  title: string;
-  items: NavItem[];
+  return item.roles.some((role) => {
+    switch (role) {
+      case "all":
+        return true
+      case "hr":
+        return user.role === "hr"
+      case "employee":
+        return user.role === "employee"
+      case "management":
+        return isHROrManagement(user)
+      case "project_access":
+        return canManageProjects(user)
+      default:
+        return false
+    }
+  })
 }
 
 export default function Sidebar() {
-  const pathname = usePathname();
-  const { user, logout } = useAuthStore();
-  const { sidebarOpen, closeSidebar, sidebarCollapsed, toggleSidebarCollapse } = useUIStore();
-  const [pendingCount, setPendingCount] = useState(0);
+  const pathname = usePathname()
+  const { user, logout } = useAuthStore()
+  const { sidebarOpen, closeSidebar, sidebarCollapsed, toggleSidebarCollapse } = useUIStore()
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
-    if (user?.role !== "hr") return;
+    if (!isHROrManagement(user)) return
 
     const fetchPendingCount = async () => {
       try {
-        const response = await api.get("/resume/review-queue");
-        setPendingCount(response.data.length || 0);
+        const response = await api.get("/resume/review-queue")
+        setPendingCount(response.data.length || 0)
       } catch (error) {
-        console.error("Failed to fetch pending count:", error);
+        console.error("Failed to fetch pending count:", error)
       }
-    };
+    }
 
-    fetchPendingCount();
+    fetchPendingCount()
 
-    // Only fetch once on mount
-    const timer = setTimeout(fetchPendingCount, 30000); // Refetch every 30 seconds
-    return () => clearTimeout(timer);
-  }, [user?.role]);
+    // Refetch every 30 seconds
+    const timer = setTimeout(fetchPendingCount, 30000)
+    return () => clearTimeout(timer)
+  }, [user])
 
-  const navSections: NavSection[] = [
-    {
-      title: "Main",
-      items: [
-        {
-          label: "Dashboard",
-          href: "/dashboard",
-          icon: <LayoutDashboard size={16} />,
-        },
-        {
-          label: "AI Search",
-          href: "/ai-search",
-          icon: <Sparkles size={16} />,
-          special: true,
-        },
-      ],
-    },
-    {
-      title: "People",
-      items: [
-        {
-          label: "Employee Directory",
-          href: "/hr/employees",
-          icon: <Users size={16} />,
-        },
-        {
-          label: "Profiles",
-          href: "/profiles",
-          icon: <BadgeCheck size={16} />,
-        },
-        {
-          label: "Review Queue",
-          href: "/hr/review-queue",
-          icon: <Inbox size={16} />,
-          badge: pendingCount,
-        },
-      ],
-    },
-    {
-      title: "Intelligence",
-      items: [
-        {
-          label: "Skills Analytics",
-          href: "/skills-analytics",
-          icon: <BarChart2 size={16} />,
-        },
-        {
-          label: "Team Builder",
-          href: "/team-builder",
-          icon: <UsersRound size={16} />,
-        },
-        {
-          label: "Skill Gap Analysis",
-          href: "/skill-gap",
-          icon: <TrendingUp size={16} />,
-        },
-      ],
-    },
-    {
-      title: "Data",
-      items: [
-        {
-          label: "Import Resumes",
-          href: "/hr/import",
-          icon: <Upload size={16} />,
-        },
-        {
-          label: "Skills Taxonomy",
-          href: "/taxonomy",
-          icon: <Tag size={16} />,
-        },
-      ],
-    },
-  ];
+  const filteredSections = navStructure
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .filter((item) => canSeeNavItem(item, user))
+        .map((item) =>
+          item.href === "/hr/review-queue"
+            ? { ...item, badge: { type: "count" as const, value: pendingCount } }
+            : item
+        ),
+    }))
+    .filter((section) => section.items.length > 0)
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+    pathname === href || pathname.startsWith(href + "/")
 
   const handleNavItemClick = () => {
-    closeSidebar();
-  };
+    closeSidebar()
+  }
 
-  const NavItem = ({ item }: { item: NavItem }) => {
-    const active = isActive(item.href);
-
-    if (item.special) {
-      if (sidebarCollapsed) {
-        return (
-          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
-            <Link
-              href={item.href}
-              onClick={handleNavItemClick}
-              title={item.label}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "8px",
-                margin: "1px 8px",
-                borderRadius: "6px",
-                backgroundColor: "#fff7ed",
-                color: "#9a3412",
-                textDecoration: "none",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#ffedd5";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff7ed";
-              }}
-            >
-              <Sparkles size={16} />
-            </Link>
-          </div>
-        );
-      }
-
-      return (
-        <Link
-          href={item.href}
-          onClick={handleNavItemClick}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "8px 12px",
-            margin: "1px 8px",
-            borderRadius: "6px",
-            backgroundColor: "#fff7ed",
-            color: "#9a3412",
-            fontWeight: "500",
-            fontSize: "13px",
-            textDecoration: "none",
-            transition: "background-color 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#ffedd5";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#fff7ed";
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <Sparkles size={16} />
-            <span>{item.label}</span>
-          </div>
-          <ChevronRight size={14} style={{ color: "#c2682a", opacity: 0.6 }} />
-        </Link>
-      );
-    }
+  const NavItem = ({ item }: { item: (typeof filteredSections)[0]["items"][0] }) => {
+    const active = isActive(item.href)
+    const Icon = item.icon
 
     if (sidebarCollapsed) {
       return (
@@ -234,17 +108,17 @@ export default function Sidebar() {
             }}
             onMouseEnter={(e) => {
               if (!active) {
-                e.currentTarget.style.backgroundColor = "#f5f0eb";
+                e.currentTarget.style.backgroundColor = "#f5f0eb"
               }
             }}
             onMouseLeave={(e) => {
               if (!active) {
-                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.backgroundColor = "transparent"
               }
             }}
           >
-            {item.icon}
-            {item.badge !== undefined && item.badge > 0 && (
+            <Icon size={16} />
+            {item.badge && item.badge.type === "count" && (item.badge.value ?? 0) > 0 && (
               <span
                 style={{
                   position: "absolute",
@@ -260,12 +134,12 @@ export default function Sidebar() {
                   textAlign: "center",
                 }}
               >
-                {item.badge}
+                {item.badge.value}
               </span>
             )}
           </Link>
         </div>
-      );
+      )
     }
 
     return (
@@ -289,12 +163,12 @@ export default function Sidebar() {
         }}
         onMouseEnter={(e) => {
           if (!active) {
-            e.currentTarget.style.backgroundColor = "#f5f0eb";
+            e.currentTarget.style.backgroundColor = "#f5f0eb"
           }
         }}
         onMouseLeave={(e) => {
           if (!active) {
-            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.backgroundColor = "transparent"
           }
         }}
       >
@@ -315,12 +189,12 @@ export default function Sidebar() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ color: active ? "#c2682a" : "inherit" }}>
-            {item.icon}
+            <Icon size={16} />
           </span>
           <span>{item.label}</span>
         </div>
 
-        {item.badge !== undefined && item.badge > 0 && (
+        {item.badge && item.badge.type === "count" && (item.badge.value ?? 0) > 0 && (
           <span
             style={{
               marginLeft: "auto",
@@ -332,12 +206,12 @@ export default function Sidebar() {
               padding: "2px 8px",
             }}
           >
-            {item.badge}
+            {item.badge.value}
           </span>
         )}
       </Link>
-    );
-  };
+    )
+  }
 
   const sidebarContent = (
     <>
@@ -368,12 +242,12 @@ export default function Sidebar() {
               transition: "all 0.2s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f5f0eb";
-              e.currentTarget.style.color = "#7c2d12";
+              e.currentTarget.style.backgroundColor = "#f5f0eb"
+              e.currentTarget.style.color = "#7c2d12"
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "#78716c";
+              e.currentTarget.style.backgroundColor = "transparent"
+              e.currentTarget.style.color = "#78716c"
             }}
           >
             <ChevronRight size={16} style={{ transform: "rotate(180deg)" }} />
@@ -392,8 +266,8 @@ export default function Sidebar() {
           scrollbarColor: "#a8a29e transparent",
         }}
       >
-        {navSections.map((section) => (
-          <div key={section.title} style={{ marginBottom: "24px" }}>
+        {filteredSections.map((section) => (
+          <div key={section.label} style={{ marginBottom: "24px" }}>
             {!sidebarCollapsed && (
               <h3
                 style={{
@@ -406,7 +280,7 @@ export default function Sidebar() {
                   color: "#b8b0a6",
                 }}
               >
-                {section.title}
+                {section.label}
               </h3>
             )}
             <div
@@ -444,10 +318,10 @@ export default function Sidebar() {
                 transition: "background-color 0.2s",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f5f0eb";
+                e.currentTarget.style.backgroundColor = "#f5f0eb"
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.backgroundColor = "transparent"
               }}
             >
               <Settings size={16} />
@@ -456,8 +330,8 @@ export default function Sidebar() {
 
             <button
               onClick={() => {
-                logout();
-                closeSidebar();
+                logout()
+                closeSidebar()
               }}
               style={{
                 width: "100%",
@@ -476,10 +350,10 @@ export default function Sidebar() {
                 transition: "background-color 0.2s",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f5f0eb";
+                e.currentTarget.style.backgroundColor = "#f5f0eb"
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.backgroundColor = "transparent"
               }}
             >
               <LogOut size={16} />
@@ -511,12 +385,12 @@ export default function Sidebar() {
               transition: "all 0.2s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f5f0eb";
-              e.currentTarget.style.borderColor = "#c2682a";
+              e.currentTarget.style.backgroundColor = "#f5f0eb"
+              e.currentTarget.style.borderColor = "#c2682a"
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#faf8f5";
-              e.currentTarget.style.borderColor = "#d4cec4";
+              e.currentTarget.style.backgroundColor = "#faf8f5"
+              e.currentTarget.style.borderColor = "#d4cec4"
             }}
           >
             <ChevronRight size={16} />
@@ -546,7 +420,7 @@ export default function Sidebar() {
         }
       `}</style>
     </>
-  );
+  )
 
   return (
     <>
@@ -584,5 +458,5 @@ export default function Sidebar() {
         {sidebarContent}
       </div>
     </>
-  );
+  )
 }

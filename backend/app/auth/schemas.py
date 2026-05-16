@@ -18,6 +18,11 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UserMeResponse(UserResponse):
+    designation: str | None = None
+    department: str | None = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

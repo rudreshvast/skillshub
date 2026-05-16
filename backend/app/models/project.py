@@ -1,6 +1,7 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, DateTime, ARRAY, JSON
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.db.database import Base
 
 
@@ -10,9 +11,14 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     description = Column(Text, nullable=True)
-    status = Column(String, default="active")  # active, on_hold, completed
+    client = Column(String, nullable=True)
+    domain = Column(String, nullable=True)
+    tech_stack = Column(ARRAY(String), nullable=True)
+    links = Column(JSON, nullable=True)
+    status = Column(String, default="active")
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

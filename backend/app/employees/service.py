@@ -202,10 +202,10 @@ def generate_csv_template() -> str:
     ]
 
     sample_rows = [
-        ["EMP001", "John Doe", "john.doe@company.com", "1995-03-15", "2024-01-01",
-         "Software Engineer", "Engineering", "Bangalore", "hybrid", "mid"],
-        ["EMP002", "Jane Smith", "jane.smith@company.com", "1998-07-22", "2024-02-15",
-         "Product Manager", "Product", "Remote", "remote", "senior"],
+        ["EMP001", "Alice Kumar", "alice.kumar@company.com", "1995-03-15", "2024-01-01",
+         "Developer", "Development", "Bangalore", "hybrid", "mid"],
+        ["EMP002", "Bob Singh", "bob.singh@company.com", "1998-07-22", "2024-02-15",
+         "QA Analyst", "Quality Assurance", "Remote", "remote", "senior"],
     ]
 
     output = StringIO()
