@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AppLayout from "@/app/components/layout/app-layout";
 import ProtectedRoute from "@/app/components/protected-route";
 import SearchBar from "@/app/components/hr/search-bar";
 import ParsedQueryDisplay from "@/app/components/hr/parsed-query-display";
@@ -32,9 +33,10 @@ export default function SearchPage() {
   };
 
   return (
-    <ProtectedRoute requiredRole="hr">
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-        <div className="max-w-7xl mx-auto">
+    <AppLayout>
+      <ProtectedRoute requiredRole="hr">
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-8">
+          <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -114,8 +116,9 @@ export default function SearchPage() {
               </p>
             </div>
           )}
+          </div>
         </div>
-      </div>
-    </ProtectedRoute>
+      </ProtectedRoute>
+    </AppLayout>
   );
 }

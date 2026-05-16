@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppLayout from "@/app/components/layout/app-layout";
 import ProtectedRoute from "@/app/components/protected-route";
 import QueueList from "@/app/components/hr/queue-list";
 import ProfileEditor from "@/app/components/hr/profile-editor";
@@ -114,17 +115,19 @@ export default function ReviewQueuePage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requiredRole="hr">
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-gray-600">Loading...</div>
-        </div>
-      </ProtectedRoute>
+      <AppLayout>
+        <ProtectedRoute requiredRole="hr">
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-gray-600">Loading...</div>
+          </div>
+        </ProtectedRoute>
+      </AppLayout>
     );
   }
 
   return (
-    <ProtectedRoute requiredRole="hr">
-      <div className="min-h-screen bg-gray-50">
+    <AppLayout>
+      <ProtectedRoute requiredRole="hr">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Resume Review Queue
@@ -161,7 +164,7 @@ export default function ReviewQueuePage() {
             </div>
           )}
         </div>
-      </div>
-    </ProtectedRoute>
+      </ProtectedRoute>
+    </AppLayout>
   );
 }

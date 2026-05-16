@@ -18,6 +18,7 @@ interface PendingProfile {
   id: number;
   employee_id: number;
   uploaded_at: string;
+  uploaded_by?: number;
   employee_name: string;
   designation: string;
   department: string;
@@ -69,9 +70,16 @@ export default function QueueList({
                   {item.department}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                {formatTimeAgo(item.uploaded_at)}
-              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <p className="text-xs text-gray-500">
+                  {formatTimeAgo(item.uploaded_at)}
+                </p>
+                {item?.uploaded_by && (
+                  <span className="inline-block px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+                    Uploaded by HR
+                  </span>
+                )}
+              </div>
             </button>
           ))
         )}

@@ -23,6 +23,7 @@ from app.models.pending_profile import PendingProfile  # noqa: F401
 from app.models.employee_skill import EmployeeSkill  # noqa: F401
 from app.models.employee_project import EmployeeProject  # noqa: F401
 from app.models.employee_certification import EmployeeCertification  # noqa: F401
+from app.models.project import Project, ProjectAllocation  # noqa: F401
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

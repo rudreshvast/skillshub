@@ -10,6 +10,7 @@ from app.models.employee import Employee
 from app.models.employee_skill import EmployeeSkill
 from app.models.employee_project import EmployeeProject
 from app.models.employee_certification import EmployeeCertification
+from app.models.project import ProjectAllocation
 from app.auth.utils import hash_password
 from app.employees.schemas import (
     EmployeeCreate, EmployeeResponse, ImportError, BulkImportResponse,
@@ -215,6 +216,16 @@ def generate_csv_template() -> str:
     return output.getvalue()
 
 
+def _get_employee_current_allocation(db: Session, employee_id: int) -> int:
+    """Get the current allocation percentage for an employee."""
+    today = date.today()
+    result = db.query(func.sum(ProjectAllocation.allocation_percentage)).filter(
+        ProjectAllocation.employee_id == employee_id,
+        (ProjectAllocation.end_date.is_(None)) | (ProjectAllocation.end_date >= today)
+    ).scalar()
+    return result or 0
+
+
 def get_employee_list(
     db: Session,
     search: str | None = None,
@@ -275,6 +286,7 @@ def get_employee_list(
         )
 
         top_skills = [s.skill_name for s in sorted_skills[:4]]
+        current_allocation = _get_employee_current_allocation(db, emp.id)
 
         item = EmployeeListItem(
             id=emp.id,
@@ -287,7 +299,8 @@ def get_employee_list(
             years_of_experience=emp.years_of_experience,
             profile_complete=emp.profile_complete,
             domain_expertise=emp.domain_expertise,
-            top_skills=top_skills
+            top_skills=top_skills,
+            current_allocation_percentage=current_allocation
         )
         employee_items.append(item)
 

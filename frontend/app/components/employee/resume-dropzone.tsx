@@ -42,50 +42,64 @@ interface ExtractedProfile {
 
 interface ResumeDropzoneProps {
   onSuccess: (profile: ExtractedProfile) => void;
+  targetEmployeeId?: number;
+  uploadedByHr?: boolean;
+  employeeName?: string;
 }
 
 type UploadStage = "idle" | "uploading" | "extracting" | "analyzing" | "done";
 
-export default function ResumeDropzone({ onSuccess }: ResumeDropzoneProps) {
+export default function ResumeDropzone({
+  onSuccess,
+  targetEmployeeId,
+  uploadedByHr,
+  employeeName,
+}: ResumeDropzoneProps) {
   const [stage, setStage] = useState<UploadStage>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    setError(null);
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      setError(null);
 
-    if (acceptedFiles.length === 0) {
-      setError("Please select a PDF file");
-      return;
-    }
+      if (acceptedFiles.length === 0) {
+        setError("Please select a PDF file");
+        return;
+      }
 
-    const file = acceptedFiles[0];
+      const file = acceptedFiles[0];
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Only PDF files are accepted");
-      return;
-    }
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        setError("Only PDF files are accepted");
+        return;
+      }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File size exceeds 10MB limit");
-      return;
-    }
+      if (file.size > 10 * 1024 * 1024) {
+        setError("File size exceeds 10MB limit");
+        return;
+      }
 
-    const formData = new FormData();
-    formData.append("file", file);
+      const formData = new FormData();
+      formData.append("file", file);
 
-    try {
-      setStage("uploading");
-      const response = await api.post("/resume/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      try {
+        setStage("uploading");
+        const endpoint = targetEmployeeId
+          ? `/resume/upload/${targetEmployeeId}`
+          : "/resume/upload";
+        const response = await api.post(endpoint, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
 
-      setStage("done");
-      onSuccess(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to upload resume");
-      setStage("idle");
-    }
-  }, [onSuccess]);
+        setStage("done");
+        onSuccess(response.data);
+      } catch (err: any) {
+        setError(err.response?.data?.detail || "Failed to upload resume");
+        setStage("idle");
+      }
+    },
+    [onSuccess, targetEmployeeId]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -93,12 +107,17 @@ export default function ResumeDropzone({ onSuccess }: ResumeDropzoneProps) {
     multiple: false,
   });
 
-  const stageMessages: Record<UploadStage, string> = {
-    idle: "Drop your resume here or click to upload",
-    uploading: "Uploading...",
-    extracting: "Extracting text...",
-    analyzing: "AI is analyzing your resume...",
-    done: "Done!",
+  const getStageMessage = (stage: UploadStage): string => {
+    const baseMessages: Record<UploadStage, string> = {
+      idle: "Drop your resume here or click to upload",
+      uploading: uploadedByHr
+        ? `Uploading on behalf of ${employeeName}...`
+        : "Uploading...",
+      extracting: "Extracting text...",
+      analyzing: "AI is analyzing your resume...",
+      done: "Done!",
+    };
+    return baseMessages[stage];
   };
 
   return (
@@ -129,7 +148,7 @@ export default function ResumeDropzone({ onSuccess }: ResumeDropzoneProps) {
               />
             </svg>
             <p className="text-lg font-medium text-gray-700">
-              {stageMessages[stage]}
+              {getStageMessage(stage)}
             </p>
             <p className="text-sm text-gray-600 mt-2">
               Supports PDF resumes and LinkedIn PDF exports
@@ -141,7 +160,7 @@ export default function ResumeDropzone({ onSuccess }: ResumeDropzoneProps) {
             <div className="flex items-center justify-center gap-2">
               <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
               <p className="text-lg font-medium text-gray-700">
-                {stageMessages[stage]}
+                {getStageMessage(stage)}
               </p>
             </div>
           </>

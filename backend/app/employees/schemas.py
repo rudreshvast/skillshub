@@ -108,6 +108,7 @@ class EmployeeListItem(BaseModel):
     profile_complete: bool
     domain_expertise: list[str] | None
     top_skills: list[str]
+    current_allocation_percentage: int = 0
 
     model_config = {"from_attributes": True}
 

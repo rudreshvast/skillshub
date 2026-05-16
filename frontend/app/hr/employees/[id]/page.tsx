@@ -2,12 +2,21 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Award, ArrowRight } from "lucide-react"
+import { Award, ArrowRight, FileUp, ClipboardList, CheckCircle } from "lucide-react"
+import AppLayout from "@/app/components/layout/app-layout"
 import ProtectedRoute from "@/app/components/protected-route"
 import ProfileHeader from "@/app/components/hr/profile-header"
 import SkillsSection from "@/app/components/hr/skills-section"
+import UploadResumeModal from "@/app/components/hr/upload-resume-modal"
 import api from "@/app/lib/api"
 import { EmployeeFullProfile } from "@/app/types/employee"
+
+interface PendingProfile {
+  id: number;
+  status: string;
+  uploaded_at: string;
+  uploaded_by?: number;
+}
 
 export default function EmployeeProfilePage() {
   const params = useParams()
@@ -16,6 +25,8 @@ export default function EmployeeProfilePage() {
   const [employee, setEmployee] = useState<EmployeeFullProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pendingProfile, setPendingProfile] = useState<PendingProfile | null>(null)
+  const [showUploadModal, setShowUploadModal] = useState(false)
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -24,6 +35,15 @@ export default function EmployeeProfilePage() {
       try {
         const response = await api.get<EmployeeFullProfile>(`/employees/${employeeId}`)
         setEmployee(response.data)
+
+        // Fetch pending profile
+        try {
+          const pendingResponse = await api.get<PendingProfile>(`/resume/review-queue/${employeeId}`)
+          setPendingProfile(pendingResponse.data)
+        } catch {
+          // No pending profile, that's okay
+          setPendingProfile(null)
+        }
       } catch (err: any) {
         setError(err.response?.data?.detail || "Failed to fetch employee")
       } finally {
@@ -38,32 +58,36 @@ export default function EmployeeProfilePage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requiredRole="hr">
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-600 mt-4">Loading profile...</p>
+      <AppLayout>
+        <ProtectedRoute requiredRole="hr">
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="inline-block w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-600 mt-4">Loading profile...</p>
+            </div>
           </div>
-        </div>
-      </ProtectedRoute>
+        </ProtectedRoute>
+      </AppLayout>
     )
   }
 
   if (error || !employee) {
     return (
-      <ProtectedRoute requiredRole="hr">
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-red-600 mb-4">{error || "Employee not found"}</p>
-            <button
-              onClick={() => router.push("/hr/employees")}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-            >
-              Back to Directory
-            </button>
+      <AppLayout>
+        <ProtectedRoute requiredRole="hr">
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-red-600 mb-4">{error || "Employee not found"}</p>
+              <button
+                onClick={() => router.push("/hr/employees")}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+              >
+                Back to Directory
+              </button>
+            </div>
           </div>
-        </div>
-      </ProtectedRoute>
+        </ProtectedRoute>
+      </AppLayout>
     )
   }
 
@@ -84,12 +108,86 @@ export default function EmployeeProfilePage() {
   const verifiedSkillsCount = employee.skills.filter((s) => !s.is_inferred).length
   const totalSkillsCount = employee.skills.length
 
+  const handleUploadSuccess = () => {
+    // Refresh the page to load updated data
+    window.location.reload()
+  }
+
   return (
-    <ProtectedRoute requiredRole="hr">
-      <div className="min-h-screen bg-gray-50">
+    <AppLayout>
+      <ProtectedRoute requiredRole="hr">
         <ProfileHeader employee={employee} />
 
         <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Resume Management Section */}
+          {!employee.profile_complete && !pendingProfile && (
+            <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-4">
+                <FileUp className="text-amber-600 flex-shrink-0 mt-1" size={20} />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-900 mb-2">No resume uploaded yet</h3>
+                  <p className="text-sm text-amber-800 mb-4">
+                    Upload this employee's resume to auto-populate their skills, projects, and certifications.
+                  </p>
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors"
+                  >
+                    Upload Resume
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!employee.profile_complete && pendingProfile && (
+            <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-4">
+                <ClipboardList className="text-blue-600 flex-shrink-0 mt-1" size={20} />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-900 mb-2">Resume submitted — awaiting review</h3>
+                  <p className="text-sm text-blue-800 mb-4">
+                    A resume was uploaded by HR. Review it in the queue.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => router.push(`/hr/review-queue?profile=${pendingProfile.id}`)}
+                      className="px-4 py-2 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors"
+                    >
+                      Go to Review Queue
+                    </button>
+                    <button
+                      onClick={() => setShowUploadModal(true)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Re-upload Resume
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {employee.profile_complete && (
+            <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start gap-4">
+                <CheckCircle className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-green-900 mb-2">Profile complete</h3>
+                  <p className="text-sm text-green-800 mb-4">
+                    This profile was built from a resume.
+                  </p>
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Re-upload Resume
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="lg:grid lg:grid-cols-[1fr_280px] gap-8">
             {/* Main Content */}
             <div className="space-y-8">
@@ -272,7 +370,15 @@ export default function EmployeeProfilePage() {
             </div>
           </div>
         </div>
-      </div>
-    </ProtectedRoute>
+
+        <UploadResumeModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          employeeId={parseInt(employeeId)}
+          employeeName={employee.name}
+          onSuccess={handleUploadSuccess}
+        />
+      </ProtectedRoute>
+    </AppLayout>
   )
 }

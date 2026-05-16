@@ -54,6 +54,7 @@ class PendingProfileResponse(BaseModel):
     original_pdf_path: str
     status: str
     uploaded_at: datetime
+    uploaded_by: Optional[int] = None
     reviewed_at: Optional[datetime] = None
     reviewed_by: Optional[int] = None
 
@@ -67,6 +68,7 @@ class PendingProfileWithEmployee(BaseModel):
     original_pdf_path: str
     status: str
     uploaded_at: datetime
+    uploaded_by: Optional[int] = None
     reviewed_at: Optional[datetime] = None
     employee_name: str
     designation: str

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Users } from "lucide-react"
+import AppLayout from "@/app/components/layout/app-layout"
 import ProtectedRoute from "@/app/components/protected-route"
 import EmployeeCard from "@/app/components/hr/employee-card"
 import EmployeeFilters, { FilterState } from "@/app/components/hr/employee-filters"
@@ -101,8 +102,8 @@ export default function EmployeeDirectoryPage() {
   const endIndex = Math.min(page * pageSize, total)
 
   return (
-    <ProtectedRoute requiredRole="hr">
-      <div className="min-h-screen bg-gray-50">
+    <AppLayout>
+      <ProtectedRoute requiredRole="hr">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 p-6">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -209,7 +210,7 @@ export default function EmployeeDirectoryPage() {
             </>
           )}
         </div>
-      </div>
-    </ProtectedRoute>
+      </ProtectedRoute>
+    </AppLayout>
   )
 }

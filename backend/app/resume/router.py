@@ -118,6 +118,106 @@ async def upload_resume(
         )
 
 
+@router.post("/upload/{employee_id}")
+async def upload_resume_for_employee(
+    employee_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr_role)
+) -> ExtractedProfile:
+    """Upload resume PDF for an employee (HR only)."""
+    # Validate file type
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are accepted"
+        )
+
+    # Verify employee exists
+    employee = db.query(Employee).filter(
+        Employee.id == employee_id
+    ).first()
+
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Employee not found"
+        )
+
+    # Create uploads directory if it doesn't exist
+    upload_dir = "backend/uploads/resumes"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Save PDF file
+    timestamp = int(datetime.utcnow().timestamp() * 1000)
+    pdf_filename = f"{employee_id}_{timestamp}.pdf"
+    pdf_path = os.path.join(upload_dir, pdf_filename)
+
+    try:
+        content = await file.read()
+
+        # Validate file size (10MB)
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="File size exceeds 10MB limit"
+            )
+
+        with open(pdf_path, "wb") as f:
+            f.write(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to save file: {str(e)}"
+        )
+
+    # Extract text using asyncio.to_thread
+    try:
+        raw_text = await asyncio.to_thread(service.extract_text_from_pdf, pdf_path)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to extract text: {str(e)}"
+        )
+
+    # Validate extracted text
+    if len(raw_text) < 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not extract readable text from this PDF"
+        )
+
+    # Call Claude API using asyncio.to_thread
+    try:
+        extracted_data = await asyncio.to_thread(service.call_claude_api, raw_text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to extract profile: {str(e)}"
+        )
+
+    # Save to pending_profiles table with uploaded_by set to current user
+    try:
+        profile = service.get_or_create_employee_pending_profile(
+            db, employee_id, extracted_data, pdf_path
+        )
+        profile.uploaded_by = current_user.id
+        db.commit()
+        return ExtractedProfile(**extracted_data)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to save profile: {str(e)}"
+        )
+
+
 @router.get("/my-profile")
 def get_my_profile(
     db: Session = Depends(get_db),
@@ -161,6 +261,7 @@ def get_review_queue(
             original_pdf_path=row["original_pdf_path"],
             status=row["status"],
             uploaded_at=row["uploaded_at"],
+            uploaded_by=row["uploaded_by"],
             reviewed_at=row["reviewed_at"],
             employee_name=row["employee_name"],
             designation=row["designation"],

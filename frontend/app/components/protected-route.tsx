@@ -16,20 +16,21 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   useEffect(() => {
     loadFromStorage();
-    setIsLoading(false);
+    queueMicrotask(() => setIsLoading(false));
   }, [loadFromStorage]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading && !token) {
+      router.push("/login");
+    }
+  }, [isLoading, token, router]);
+
+  if (isLoading || !token) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-gray-600">Loading...</div>
       </div>
     );
-  }
-
-  if (!token) {
-    router.push("/login");
-    return null;
   }
 
   if (requiredRole && user?.role !== requiredRole) {

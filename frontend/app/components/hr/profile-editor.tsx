@@ -25,8 +25,6 @@ interface ExtractedProfile {
     inferred_from: string;
     confidence: number;
     category: string;
-    is_inferred: boolean;
-    confidence_score?: number;
   }>;
   projects: Array<{
     name: string;
@@ -270,7 +268,9 @@ export default function ProfileEditor({
             skills={[
               ...editedData.skills,
               ...editedData.inferred_skills.map((s) => ({
-                ...s,
+                name: s.name,
+                category: s.category,
+                proficiency: "intermediate",
                 is_inferred: true,
                 confidence_score: s.confidence,
               })),

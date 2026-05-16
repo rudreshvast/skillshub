@@ -143,6 +143,7 @@ def get_review_queue(db: Session) -> list:
             "original_pdf_path": profile.original_pdf_path,
             "status": profile.status,
             "uploaded_at": profile.uploaded_at,
+            "uploaded_by": profile.uploaded_by,
             "reviewed_at": profile.reviewed_at,
             "employee_name": row[1],
             "designation": row[2],

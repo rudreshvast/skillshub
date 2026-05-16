@@ -36,6 +36,7 @@ export interface EmployeeListItem {
   profile_complete: boolean
   domain_expertise: string[] | null
   top_skills: string[]
+  current_allocation_percentage?: number
 }
 
 export interface EmployeeFullProfile {

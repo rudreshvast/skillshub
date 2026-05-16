@@ -14,8 +14,10 @@ class PendingProfile(Base):
     original_pdf_path = Column(String, nullable=False)
     status = Column(String, default="pending", nullable=False)  # pending, approved, rejected
     uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # HR user who uploaded on behalf
     reviewed_at = Column(DateTime, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     employee = relationship("Employee", backref="pending_profiles")
+    uploader = relationship("User", foreign_keys=[uploaded_by])
     reviewer = relationship("User", foreign_keys=[reviewed_by])

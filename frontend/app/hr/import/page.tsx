@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AppLayout from "@/app/components/layout/app-layout";
 import ProtectedRoute from "@/app/components/protected-route";
 import SingleImportForm from "@/app/components/hr/single-import-form";
 import BulkImportUpload from "@/app/components/hr/bulk-import-upload";
@@ -9,8 +10,8 @@ export default function EmployeeImportPage() {
   const [activeTab, setActiveTab] = useState<"single" | "bulk">("single");
 
   return (
-    <ProtectedRoute requiredRole="hr">
-      <div className="min-h-screen bg-gray-50">
+    <AppLayout>
+      <ProtectedRoute requiredRole="hr">
         <div className="max-w-4xl mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Employee Import</h1>
           <p className="text-gray-600 mb-8">
@@ -47,7 +48,7 @@ export default function EmployeeImportPage() {
             {activeTab === "bulk" && <BulkImportUpload />}
           </div>
         </div>
-      </div>
-    </ProtectedRoute>
+      </ProtectedRoute>
+    </AppLayout>
   );
 }
